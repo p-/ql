@@ -18,23 +18,32 @@
 import codeql.ruby.security.KernelOpenQuery
 import codeql.ruby.AST
 import codeql.ruby.ApiGraphs
+import codeql.ruby.DataFlow
 
 from AmbiguousPathCall call
 where
-  not hasConstantPrefix(call.getPathArgument().getALocalSource().asExpr().getExpr()) and
+  call.getNumberOfArguments() > 0 and
+  not hasConstantPrefix(call.getPathArgument()) and
   not call.getPathArgument().getALocalSource() =
     API::getTopLevelMember("File").getAMethodCall("join")
 select call,
   "Call to " + call.getName() + " with a non-constant value. Consider replacing it with " +
     call.getReplacement() + "."
 
-predicate hasConstantPrefix(Expr e) {
+predicate hasConstantPrefix(DataFlow::Node node) {
+  hasConstantPrefix(node.getALocalSource())
+  or
   // if it's a format string, then the first argument is not a constant string
-  e.(StringlikeLiteral).getComponent(0) instanceof StringTextComponent
+  node.asExpr().getExpr().(StringlikeLiteral).getComponent(0) instanceof StringTextComponent
   or
   // it is not a constant string argument
-  exists(e.getConstantValue())
+  exists(node.asExpr().getExpr().getConstantValue())
   or
   // not a concatenation that starts with a constant string
-  hasConstantPrefix(e.(AddExpr).getLeftOperand())
+  exists(DataFlow::Node prefix | node.asExpr().getExpr().(AddExpr).getLeftOperand() = prefix.asExpr().getExpr() |
+    hasConstantPrefix(prefix)
+  )
+  or
+  // is a .freeze call on a constant string
+  node.asExpr().getExpr().(ConstantReadAccess).getValue().(MethodCall).getMethodName() = "freeze"
 }

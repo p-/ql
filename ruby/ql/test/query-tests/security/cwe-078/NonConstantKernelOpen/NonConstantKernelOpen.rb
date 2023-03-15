@@ -1,4 +1,7 @@
 class UsersController < ActionController::Base
+  CONSTANT = "constant"
+  CONSTANT_WITH_FREEZE = "freeze".freeze
+
   def create
     file = params[:file]
     open(file) # BAD
@@ -29,6 +32,16 @@ class UsersController < ActionController::Base
     IO.foreach("|" + EnvUtil.rubybin + " -e 'puts :foo; puts :bar; puts :baz'") {|x| a << x } # GOOD
 
     IO.write(File.join("foo", "bar.txt"), "bar") # GOOD
+
+    IO.read(CONSTANT) # GOOD
+
+    IO.read(CONSTANT + file) # GOOD
+    
+    IO.read(CONSTANT_WITH_FREEZE) # GOOD
+
+    IO.read(CONSTANT_WITH_FREEZE + file) # GOOD
+
+    open.where(external: false) # GOOD - no arguments on different open method
 
     open(file) # BAD - sanity check to verify that file was not mistakenly marked as sanitized
   end
